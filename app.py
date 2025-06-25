@@ -23,11 +23,17 @@ if submitted:
     else:
         try:
             if provider == "Coverflex":
-                df = pd.read_csv(uploaded_file, skiprows=3)
+                # Prova con separatore ';' e salta righe di header inutili
+                df = pd.read_csv(uploaded_file, skiprows=3, sep=';')
             else:
                 df = pd.read_csv(uploaded_file)
-            
+
+            # Pulisci nomi colonne
+            df.columns = df.columns.str.strip()
+
+            # Debug: mostra colonne e prime righe
             st.write("Colonne file caricato:", df.columns.tolist())
+            st.write("Prime righe del file:", df.head())
 
             if provider == "Coverflex":
                 df_out = convert_coverflex(df, codice_azienda, mappa_causali_df)
