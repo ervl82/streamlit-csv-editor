@@ -1,115 +1,115 @@
 import pandas as pd
+import re
 
+# Funzione per pulire e convertire importi con virgole e punti
 def clean_importo(val):
     if pd.isna(val):
         return 0
-    # Rimuovo spazi, sostituisco virgola con punto e rimuovo punti come separatori migliaia
-    val_str = str(val).strip().replace('.', '').replace(',', '.')
+    val_str = str(val).strip()
+    val_str = val_str.replace(' ', '')
+    if '.' in val_str and ',' in val_str:
+        val_str = val_str.replace('.', '').replace(',', '.')
+    elif ',' in val_str:
+        val_str = val_str.replace(',', '.')
+    val_str = re.sub(r'[^0-9.]', '', val_str)
     try:
         return float(val_str)
     except:
         return 0
 
-def format_data(data):
-    # Provo a convertire la data con dayfirst=True e vari formati
-    try:
-        dt = pd.to_datetime(data, dayfirst=True, errors='coerce')
-        if pd.isna(dt):
-            # fallback: prova senza dayfirst
-            dt = pd.to_datetime(data, errors='coerce')
-        if pd.isna(dt):
-            return ""
-        return dt.strftime("%d%m%y")
-    except:
-        return ""
+# Carico mappa causali da file CSV
+mappa_causali = pd.read_csv('mappa_causali.csv', encoding='utf-8')
+causali_dict = dict(zip(mappa_causali['Trattamento'].str.strip(), mappa_causali['Codice']))
 
-def mappa_causale(trattamento, mappa_causali_df):
-    # Cerca la causale nella mappa e restituisce il codice corrispondente
-    match = mappa_causali_df[mappa_causali_df['Trattamento'].str.strip().str.lower() == str(trattamento).strip().lower()]
-    if not match.empty:
-        return str(match.iloc[0]['Codice'])
-    return ""
-
-def convert_coverflex(df, codice_azienda, mappa_causali_df):
+def convert_coverflex(df, codice_azienda):
     output_rows = []
     progressivo = 1
-
-    # Assicurati che le colonne chiave esistano
-    expected_cols = ['Codice fiscale dipendente', 'Tratt. Fiscale', 'Importo', 'Data']
-    for col in expected_cols:
-        if col not in df.columns:
-            raise ValueError(f"Colonna '{col}' non trovata nel file Coverflex")
-
     for _, row in df.iterrows():
-        codice_dip = row['Codice fiscale dipendente']
-        trattamento = row['Tratt. Fiscale']
-        importo_raw = row['Importo']
-        data_raw = row['Data']
-
+        # Mapping colonne input
+        codice_dipendente = row.get('Codice fiscale dipendente', '').strip()
+        trattamento = row.get('Tratt. Fiscale', '').strip()
+        importo_raw = row.get('Importo', 0)
+        data_raw = row.get('Data', '')
+        
         importo = clean_importo(importo_raw)
-        if importo == 0:
-            continue  # Skip righe senza importo
+        importo = int(importo * 100)  # moltiplico per 100
+        
+        # Parsing data dd/mm/yyyy o yyyy-mm-dd
+        data_str = ''
+        for fmt in ('%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y'):
+            try:
+                data_str = pd.to_datetime(data_raw, format=fmt).strftime('%d%m%y')
+                break
+            except:
+                pass
+        if data_str == '':
+            try:
+                # Provo parser generico
+                data_str = pd.to_datetime(data_raw, dayfirst=True).strftime('%d%m%y')
+            except:
+                data_str = '000000'  # fallback
 
-        causale = mappa_causale(trattamento, mappa_causali_df)
-        periodo = format_data(data_raw)
-
+        codice_causale = causali_dict.get(trattamento, '')
+        
         output_rows.append({
-            "Codice dipendente": codice_dip,
-            "Codice voce": causale,
-            "Descrizione": "",
-            "Quantità": "",
-            "Base": "",
-            "Importo": int(round(importo * 100)),
-            "Periodo": periodo,
-            "Tipo elaborazione": "",
-            "Progressivo": progressivo
+            'Codice dipendente': codice_dipendente,
+            'Codice voce': progressivo,
+            'Descrizione': '',
+            'Quantità': '',
+            'Base': '',
+            'Importo': importo,
+            'Periodo': data_str,
+            'Tipo elaborazione': '',
+            'Codice causale': codice_causale
         })
         progressivo += 1
+    return pd.DataFrame(output_rows)
 
-    output_df = pd.DataFrame(output_rows, columns=[
-        "Codice dipendente", "Codice voce", "Descrizione", "Quantità", "Base",
-        "Importo", "Periodo", "Tipo elaborazione", "Progressivo"
-    ])
-    return output_df
-
-def convert_doubleyou(df, codice_azienda, mappa_causali_df):
+def convert_doubleyou(df, codice_azienda):
     output_rows = []
     progressivo = 1
-
-    # Controllo colonne necessarie
-    expected_cols = ['CodFisc', 'Tratt. Fiscale', 'Totale', 'Data Ordine']
-    for col in expected_cols:
-        if col not in df.columns:
-            raise ValueError(f"Colonna '{col}' non trovata nel file DoubleYou")
-
     for _, row in df.iterrows():
-        codice_dip = row['CodFisc']
-        trattamento = row['Tratt. Fiscale']
-        importo_raw = row['Totale']
-        data_raw = row['Data Ordine']
-
+        codice_dipendente = row.get('CodFisc', '').strip()
+        trattamento = row.get('Tratt. Fiscale', '').strip()
+        importo_raw = row.get('Totale', 0)
+        data_raw = row.get('Data Ordine', '')
+        
         importo = clean_importo(importo_raw)
-        if importo == 0:
-            continue
+        importo = int(importo * 100)
+        
+        data_str = ''
+        for fmt in ('%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y'):
+            try:
+                data_str = pd.to_datetime(data_raw, format=fmt).strftime('%d%m%y')
+                break
+            except:
+                pass
+        if data_str == '':
+            try:
+                data_str = pd.to_datetime(data_raw, dayfirst=True).strftime('%d%m%y')
+            except:
+                data_str = '000000'
 
-        causale = mappa_causale(trattamento, mappa_causali_df)
-        periodo = format_data(data_raw)
-
+        codice_causale = causali_dict.get(trattamento, '')
+        
         output_rows.append({
-            "Codice dipendente": codice_dip,
-            "Codice voce": causale,
-            "Descrizione": "",
-            "Quantità": "",
-            "Base": "",
-            "Importo": int(round(importo * 100)),
-            "Periodo": periodo,
-            "Tipo elaborazione": "",
-            "Progressivo": progressivo
+            'Codice dipendente': codice_dipendente,
+            'Codice voce': progressivo,
+            'Descrizione': '',
+            'Quantità': '',
+            'Base': '',
+            'Importo': importo,
+            'Periodo': data_str,
+            'Tipo elaborazione': '',
+            'Codice causale': codice_causale
         })
         progressivo += 1
+    return pd.DataFrame(output_rows)
 
-    output_df = pd.DataFrame(output_rows, columns=[
-        "Codice dipendente", "Codice voce", "Descrizione", "Quantità", "Base",
-        "Importo", "Periodo", "Tipo elaborazione", "Progressivo"
-    ])
-    return output_df
+def convert_file(df, codice_azienda, provider):
+    if provider == 'Coverflex':
+        return convert_coverflex(df, codice_azienda)
+    elif provider == 'DoubleYou':
+        return convert_doubleyou(df, codice_azienda)
+    else:
+        raise ValueError('Provider non supportato')
