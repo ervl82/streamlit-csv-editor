@@ -1,6 +1,6 @@
 import pandas as pd
 
-# Carica la mappa causali una volta sola
+# Carica la mappa causali una volta sola 
 causali_df = pd.read_csv('mappa_causali.csv')
 
 def get_codice_causale(trattamento):
