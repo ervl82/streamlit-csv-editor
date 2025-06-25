@@ -3,6 +3,7 @@ import pandas as pd
 from io import BytesIO
 from conversion_rules import convert_coverflex, convert_doubleyou
 import os
+import re
 
 MAPPAC_PATH = os.path.join(os.path.dirname(__file__), "mappa_causali.csv")
 mappa_causali_df = pd.read_csv(MAPPAC_PATH)
@@ -11,10 +12,19 @@ def normalize_importo(df, col='Importo'):
     def fix_val(x):
         if pd.isna(x):
             return 0.0
-        s = str(x).replace('.', '').replace(',', '.')
+        s = str(x).strip()
+        # Rimuove tutto ciò che non è numero, virgola o punto
+        s_clean = re.sub(r'[^0-9,\.]', '', s)
+        # Gestione punti e virgole
+        if '.' in s_clean and ',' in s_clean:
+            s_clean = s_clean.replace('.', '')
+            s_clean = s_clean.replace(',', '.')
+        elif ',' in s_clean and '.' not in s_clean:
+            s_clean = s_clean.replace(',', '.')
         try:
-            return float(s)
-        except:
+            return float(s_clean)
+        except Exception as e:
+            print(f"Valore non convertibile: '{x}' → '{s_clean}' - errore: {e}")
             return 0.0
     df[col] = df[col].apply(fix_val)
     return df
@@ -52,20 +62,19 @@ if submitted:
                 df = normalize_importo(df, 'Importo')
             else:
                 df = pd.read_csv(uploaded_file)
-                # La colonna con importo in DoubleYou è 'Totale'
                 df = normalize_importo(df, 'Totale')
 
             df.columns = df.columns.str.strip()
             st.write("Colonne file caricato:", df.columns.tolist())
             st.write("Prime righe del file:", df.head())
 
+            # Stampa debug valori importo
             if provider == "Coverflex":
+                st.write("Valori normalizzati Importo (Coverflex):", df['Importo'].head(10))
                 df_out = convert_coverflex(df, codice_azienda, mappa_causali_df)
-            elif provider == "DoubleYou":
-                df_out = convert_doubleyou(df, codice_azienda, mappa_causali_df)
             else:
-                st.error("Provider non supportato.")
-                st.stop()
+                st.write("Valori normalizzati Totale (DoubleYou):", df['Totale'].head(10))
+                df_out = convert_doubleyou(df, codice_azienda, mappa_causali_df)
 
             st.success("✅ Conversione completata.")
 
