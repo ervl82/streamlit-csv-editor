@@ -22,20 +22,26 @@ if submitted:
         st.error("Carica un file CSV da convertire.")
     else:
         try:
+            # Leggi file come testo puro per debug
+            uploaded_file.seek(0)
+            raw_text = uploaded_file.read().decode('latin1')
+            st.text_area("Contenuto file (prime 500 caratteri):", raw_text[:500])
+            uploaded_file.seek(0)
+
             if provider == "Coverflex":
                 df = pd.read_csv(
                     uploaded_file,
                     skiprows=3,
                     sep=',',
                     quotechar='"',
-                    decimal=','
+                    decimal=',',
+                    encoding='latin1',
+                    engine='python'
                 )
             else:
                 df = pd.read_csv(uploaded_file)
 
             df.columns = df.columns.str.strip()
-
-            # Debug
             st.write("Colonne file caricato:", df.columns.tolist())
             st.write("Prime righe del file:", df.head())
 
