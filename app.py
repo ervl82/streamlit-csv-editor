@@ -23,15 +23,19 @@ if submitted:
     else:
         try:
             if provider == "Coverflex":
-                # Prova con separatore ';' e salta righe di header inutili
-                df = pd.read_csv(uploaded_file, skiprows=3, sep=';')
+                df = pd.read_csv(
+                    uploaded_file,
+                    skiprows=3,
+                    sep=',',
+                    quotechar='"',
+                    decimal=','
+                )
             else:
                 df = pd.read_csv(uploaded_file)
 
-            # Pulisci nomi colonne
             df.columns = df.columns.str.strip()
 
-            # Debug: mostra colonne e prime righe
+            # Debug
             st.write("Colonne file caricato:", df.columns.tolist())
             st.write("Prime righe del file:", df.head())
 
