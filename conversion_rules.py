@@ -1,73 +1,105 @@
 import pandas as pd
 
-# Carica la mappa causali una volta sola 
-causali_df = pd.read_csv('mappa_causali.csv')
+def load_causal_map():
+    df = pd.read_csv("mappa_causali.csv", sep=",")
+    mapping = dict(zip(df["Trattamento"], df["Codice"]))
+    return mapping
 
-def get_codice_causale(trattamento):
-    # Cerca nella mappa causali, restituisce codice o None se non trovato
-    row = causali_df[causali_df['Trattamento'] == trattamento]
-    if not row.empty:
-        return row['Codice'].values[0]
-    return None
+def convert_coverflex(df, mapping):
+    df.columns = df.columns.str.strip()
 
-def convert_coverflex(df, codice_azienda):
-    df = df.copy()
+    # Elimina righe non dati (es. intestazioni extra)
+    df = df[df["Codice fiscale dipendente"].notna()]
+    df = df[df["Codice fiscale dipendente"].str.contains(r"\w+", na=False)]
 
-    # Pulizia colonne: rimuovi righe vuote o intestazioni duplicate
-    df = df.loc[df['Codice fiscale dipendente'].notnull()]
+    output = []
+    for idx, row in df.iterrows():
+        codice_dip = row["Codice fiscale dipendente"]
+        codice_voce = ""
+        descrizione = row["Tratt. Fiscale"]
+        quantita = "1"
+        base = ""
+        try:
+            importo_float = float(str(row["Importo"]).replace(",", "."))
+        except:
+            importo_float = 0.0
+        importo = f"{importo_float:.2f}"
+        periodo = ""
+        tipo_elab = ""
+        progressivo = idx + 1
+        codice_causale = mapping.get(str(row["Tratt. Fiscale"]).strip(), "")
+        vuoto1 = ""
+        vuoto2 = ""
+        vuoto3 = ""
+        importo_cent = int(round(importo_float * 100))
+        try:
+            data_riga = pd.to_datetime(row["Data"], dayfirst=True)
+        except:
+            data_riga = pd.to_datetime("1900-01-01")
+        data_riga_str = data_riga.strftime("%d%m%y")
+        vuoto4 = ""
 
-    # Correggi i tipi numerici e formati
-    df['Importo'] = df['Importo'].astype(str).str.replace(',', '.').astype(float)
+        output.append([
+            codice_dip, codice_voce, descrizione, quantita, base, importo,
+            periodo, tipo_elab, progressivo, codice_causale,
+            vuoto1, vuoto2, vuoto3,
+            importo_cent, data_riga_str, vuoto4
+        ])
 
-    # Costruisci il dataframe risultato
-    result = pd.DataFrame()
-    result['Codice dipendente'] = df['Codice fiscale dipendente']
-    # Codice voce: mappato da 'Tratt. Fiscale'
-    result['Codice voce'] = df['Tratt. Fiscale'].apply(get_codice_causale)
-    result['Descrizione'] = ''
-    result['Quantità'] = ''
-    result['Base'] = ''
-    # Importo moltiplicato per 100 e convertito in int
-    result['Importo'] = (df['Importo'] * 100).round().astype(int)
-    # Periodo: formato ddmmyy (giorno, mese, anno due cifre)
-    result['Periodo'] = pd.to_datetime(df['Data'], dayfirst=True).dt.strftime('%d%m%y')
-    result['Tipo elaborazione'] = ''
-    # Codice progressivo
-    result.insert(0, 'Progressivo', range(1, len(result) + 1))
-    return result
+    columns = [
+        "Codice dipendente", "Codice voce", "Descrizione", "Quantità", "Base", "Importo",
+        "Periodo", "Tipo elaborazione", "Progressivo", "Codice Causale",
+        "Vuoto1", "Vuoto2", "Vuoto3",
+        "Importo cent", "Data riga", "Vuoto4"
+    ]
 
-def convert_doubleyou(df, codice_azienda):
-    df = df.copy()
+    return pd.DataFrame(output, columns=columns)
 
-    # Pulizia colonne: rimuovi righe vuote o intestazioni duplicate
-    df = df.loc[df['CodFisc'].notnull()]
+def convert_doubleyou(df, mapping):
+    df.columns = df.columns.str.strip()
 
-    # Correggi importi
-    df['Totale'] = df['Totale'].astype(str).str.replace(',', '.').astype(float)
+    df = df[df["CodFisc"].notna()]
+    df = df[df["CodFisc"].str.contains(r"\w+", na=False)]
 
-    result = pd.DataFrame()
-    result['Codice dipendente'] = df['CodFisc']
-    # Codice voce: mappato da 'Tratt. Fiscale'
-    result['Codice voce'] = df['Tratt. Fiscale'].apply(get_codice_causale)
-    result['Descrizione'] = ''
-    result['Quantità'] = ''
-    result['Base'] = ''
-    result['Importo'] = (df['Totale'] * 100).round().astype(int)
-    # Per periodo: se c'è colonna 'Periodo' prova a convertire in ddmmyy, altrimenti usa 'Data Ordine'
-    if 'Periodo' in df.columns:
-        # Prova a convertire da testo tipo "aprile - 2025" a formato ddmmyy: lo mettiamo a '' perché non è una data precisa
-        result['Periodo'] = ''
-    else:
-        result['Periodo'] = pd.to_datetime(df['Data Ordine'], dayfirst=True).dt.strftime('%d%m%y')
+    output = []
+    for idx, row in df.iterrows():
+        codice_dip = row["CodFisc"]
+        codice_voce = ""
+        descrizione = row["Tratt. Fiscale"]
+        quantita = "1"
+        base = ""
+        try:
+            importo_float = float(str(row["Totale"]).replace(",", "."))
+        except:
+            importo_float = 0.0
+        importo = f"{importo_float:.2f}"
+        periodo = ""
+        tipo_elab = ""
+        progressivo = idx + 1
+        codice_causale = mapping.get(str(row["Tratt. Fiscale"]).strip(), "")
+        vuoto1 = ""
+        vuoto2 = ""
+        vuoto3 = ""
+        importo_cent = int(round(importo_float * 100))
+        try:
+            data_riga = pd.to_datetime(row["Data Ordine"], dayfirst=True)
+        except:
+            data_riga = pd.to_datetime("1900-01-01")
+        data_riga_str = data_riga.strftime("%d%m%y")
+        vuoto4 = ""
 
-    result['Tipo elaborazione'] = ''
-    result.insert(0, 'Progressivo', range(1, len(result) + 1))
-    return result
+        output.append([
+            codice_dip, codice_voce, descrizione, quantita, base, importo,
+            periodo, tipo_elab, progressivo, codice_causale,
+            vuoto1, vuoto2, vuoto3,
+            importo_cent, data_riga_str, vuoto4
+        ])
 
-def convert_file(df, codice_azienda, provider):
-    if provider == 'Coverflex':
-        return convert_coverflex(df, codice_azienda)
-    elif provider == 'DoubleYou':
-        return convert_doubleyou(df, codice_azienda)
-    else:
-        raise ValueError('Provider non supportato')
+    columns = [
+        "Codice dipendente", "Codice voce", "Descrizione", "Quantità", "Base", "Importo",
+        "Periodo", "Tipo elaborazione", "Progressivo", "Codice Causale",
+        "Vuoto1", "Vuoto2", "Vuoto3",
+        "Importo cent", "Data riga", "Vuoto4"
+    ]
+
+    return pd.DataFrame(output, columns=columns)
