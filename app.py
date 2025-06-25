@@ -7,6 +7,18 @@ import os
 MAPPAC_PATH = os.path.join(os.path.dirname(__file__), "mappa_causali.csv")
 mappa_causali_df = pd.read_csv(MAPPAC_PATH)
 
+def normalize_importo(df, col='Importo'):
+    def fix_val(x):
+        if pd.isna(x):
+            return 0.0
+        s = str(x).replace('.', '').replace(',', '.')
+        try:
+            return float(s)
+        except:
+            return 0.0
+    df[col] = df[col].apply(fix_val)
+    return df
+
 st.title("📄 Convertitore file provider Welfare")
 
 with st.form("conversione_form"):
@@ -22,7 +34,6 @@ if submitted:
         st.error("Carica un file CSV da convertire.")
     else:
         try:
-            # Leggi file come testo puro per debug
             uploaded_file.seek(0)
             raw_text = uploaded_file.read().decode('latin1')
             st.text_area("Contenuto file (prime 500 caratteri):", raw_text[:500])
@@ -38,8 +49,11 @@ if submitted:
                     encoding='latin1',
                     engine='python'
                 )
+                df = normalize_importo(df, 'Importo')
             else:
                 df = pd.read_csv(uploaded_file)
+                # La colonna con importo in DoubleYou è 'Totale'
+                df = normalize_importo(df, 'Totale')
 
             df.columns = df.columns.str.strip()
             st.write("Colonne file caricato:", df.columns.tolist())
