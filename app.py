@@ -1,41 +1,41 @@
 import streamlit as st
 import pandas as pd
+from io import StringIO
 from conversion_rules import convert_coverflex, convert_doubleyou, load_causal_map
 
-st.set_page_config(page_title="Convertitore Welfare", layout="wide")
+st.set_page_config(page_title="Convertitore Welfare", layout="centered")
+st.title("🔄 Convertitore file Welfare Aziendale")
 
-st.title("🧾 Convertitore File Welfare - Coverflex / DoubleYou")
+company_code = st.text_input("Codice azienda")
+provider = st.radio("Seleziona provider", ["Coverflex", "DoubleYou"])
+uploaded_file = st.file_uploader("Carica file CSV", type=["csv"])
 
-uploaded_file = st.file_uploader("📤 Carica il file CSV da convertire", type=["csv"])
-
-if uploaded_file is not None:
+if uploaded_file and provider and company_code:
     try:
-        content = uploaded_file.getvalue().decode("utf-8", errors="ignore")
-        st.text("Contenuto file (prime 500 caratteri):")
-        st.code(content[:500])
+        content = uploaded_file.getvalue().decode("utf-8")
 
-        uploaded_file.seek(0)
-
-        mapping = load_causal_map()
-
-        df = pd.read_csv(uploaded_file, sep=None, engine="python")
-
-        st.markdown("**✅ Colonne file caricato:**")
-        st.write(df.columns.tolist())
-
-        if "Codice fiscale dipendente" in df.columns:
-            result = convert_coverflex(df, mapping)
-            filename = "coverflex_converted.csv"
-        elif "CodFisc" in df.columns:
-            result = convert_doubleyou(df, mapping)
-            filename = "doubleyou_converted.csv"
+        # Rimozione righe di intestazione extra (Coverflex ha header dopo 3 righe)
+        if provider.lower() == "coverflex":
+            skip = 3
         else:
-            st.error("❌ Formato file non riconosciuto.")
-            st.stop()
+            skip = 0
 
-        st.success("✅ Conversione completata. Scarica il file:")
-        st.download_button("📥 Scarica CSV convertito", data=result.to_csv(index=False), file_name=filename, mime="text/csv")
-        st.dataframe(result.head(50))
+        df = pd.read_csv(StringIO(content), sep=None, engine="python", skiprows=skip)
+
+        st.write("✅ File caricato:")
+        st.dataframe(df.head())
+
+        causal_map = load_causal_map()
+
+        if provider == "Coverflex":
+            result_df = convert_coverflex(df, company_code, causal_map)
+            filename = "coverflex_converted.csv"
+        else:
+            result_df = convert_doubleyou(df, company_code, causal_map)
+            filename = "doubleyou_converted.csv"
+
+        csv_output = result_df.to_csv(index=False).encode("utf-8")
+        st.download_button("📥 Scarica file convertito", data=csv_output, file_name=filename, mime="text/csv")
 
     except Exception as e:
         st.error(f"❌ Errore durante la conversione: {e}")
