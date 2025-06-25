@@ -4,7 +4,7 @@ from io import BytesIO
 from conversion_rules import convert_coverflex, convert_doubleyou
 import os
 
-# Carica la mappa causali fissa (assicurati che il file sia nella stessa cartella o correggi il path)
+# Percorso file mappa causali (metti il file mappa_causali.csv nella stessa cartella)
 MAPPAC_PATH = os.path.join(os.path.dirname(__file__), "mappa_causali.csv")
 mappa_causali_df = pd.read_csv(MAPPAC_PATH)
 
@@ -24,15 +24,18 @@ if submitted:
     else:
         try:
             df = pd.read_csv(uploaded_file)
+            st.write("Colonne file caricato:", df.columns.tolist())
 
             if provider == "Coverflex":
                 df_out = convert_coverflex(df, codice_azienda, mappa_causali_df)
             elif provider == "DoubleYou":
                 df_out = convert_doubleyou(df, codice_azienda, mappa_causali_df)
+            else:
+                st.error("Provider non supportato.")
+                st.stop()
 
             st.success("✅ Conversione completata.")
 
-            # Preparazione per il download
             buffer = BytesIO()
             df_out.to_csv(buffer, index=False)
             buffer.seek(0)
