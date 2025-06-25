@@ -4,7 +4,7 @@ from io import BytesIO
 from conversion_rules import convert_coverflex, convert_doubleyou
 import os
 
-# Percorso file mappa causali (metti il file mappa_causali.csv nella stessa cartella)
+# Percorso file mappa causali (file caricato preventivamente)
 MAPPAC_PATH = os.path.join(os.path.dirname(__file__), "mappa_causali.csv")
 mappa_causali_df = pd.read_csv(MAPPAC_PATH)
 
