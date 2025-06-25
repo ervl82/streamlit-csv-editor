@@ -1,53 +1,44 @@
 import streamlit as st
 import pandas as pd
-from conversion_rules import convert_coverflex, convert_doubleyou
-import os
+from conversion_rules import convert_file
 
-# Carica la mappa causali già presente in locale
-MAPPACOL_PATH = "mappa_causali.csv"
+st.title("Convertitore File Welfare")
 
-@st.cache_data
-def load_mappa_causali():
-    try:
-        df = pd.read_csv(MAPPACOL_PATH)
-        return df
-    except Exception as e:
-        st.error(f"Errore nel caricamento della mappa causali: {e}")
-        return None
+codice_azienda = st.text_input("Codice azienda:")
+provider = st.radio("Provider:", ('Coverflex', 'DoubleYou'))
 
-def main():
-    st.title("Convertitore File Welfare Aziendale")
+uploaded_file = st.file_uploader("Carica il file CSV da convertire", type=["csv"])
 
-    codice_azienda = st.text_input("Codice azienda")
-    provider = st.radio("Provider", ("Coverflex", "DoubleYou"))
-    uploaded_file = st.file_uploader("Carica file CSV da convertire", type=['csv'])
-
-    if uploaded_file and codice_azienda:
-        mappa_causali_df = load_mappa_causali()
-        if mappa_causali_df is None:
-            st.stop()
-
+if st.button("Converti"):
+    if not codice_azienda:
+        st.error("Inserisci il codice azienda.")
+    elif not uploaded_file:
+        st.error("Carica un file CSV.")
+    else:
         try:
+            # Leggo file con separatore corretto e gestione encoding
             if provider == 'Coverflex':
-                # Auto detect separator, uso engine python per flessibilità
                 df = pd.read_csv(uploaded_file, sep=None, engine='python', encoding='utf-8')
-                result = convert_coverflex(df, codice_azienda, mappa_causali_df)
+            elif provider == 'DoubleYou':
+                # DoubleYou usa spesso punto e virgola come separatore
+                df = pd.read_csv(uploaded_file, sep=';', encoding='utf-8')
             else:
-                # DoubleYou usa separatore punto e virgola
-                df = pd.read_csv(uploaded_file, sep=';', engine='python', encoding='utf-8')
-                result = convert_doubleyou(df, codice_azienda, mappa_causali_df)
+                st.error("Provider non supportato")
+                st.stop()
 
-            st.success("Conversione completata!")
+            converted_df = convert_file(df, codice_azienda, provider)
+            
+            # Mostra anteprima
+            st.write("Anteprima file convertito:")
+            st.dataframe(converted_df.head())
 
-            csv = result.to_csv(index=False, sep=';', encoding='utf-8')
+            # Prepara file per download
+            csv = converted_df.to_csv(index=False, sep=';')
             st.download_button(
                 label="Scarica file convertito",
                 data=csv,
-                file_name=f"{provider}_convertito_{codice_azienda}.csv",
+                file_name=f"welfare_convertito_{provider}.csv",
                 mime='text/csv'
             )
         except Exception as e:
-            st.error(f"❌ Errore durante la conversione: {e}")
-
-if __name__ == "__main__":
-    main()
+            st.error(f"❌ Errore durante la conversione: {str(e)}")
