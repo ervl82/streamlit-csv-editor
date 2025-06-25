@@ -4,7 +4,6 @@ from io import BytesIO
 from conversion_rules import convert_coverflex, convert_doubleyou
 import os
 
-# Percorso file mappa causali (file caricato preventivamente)
 MAPPAC_PATH = os.path.join(os.path.dirname(__file__), "mappa_causali.csv")
 mappa_causali_df = pd.read_csv(MAPPAC_PATH)
 
@@ -23,7 +22,11 @@ if submitted:
         st.error("Carica un file CSV da convertire.")
     else:
         try:
-            df = pd.read_csv(uploaded_file)
+            if provider == "Coverflex":
+                df = pd.read_csv(uploaded_file, skiprows=3)
+            else:
+                df = pd.read_csv(uploaded_file)
+            
             st.write("Colonne file caricato:", df.columns.tolist())
 
             if provider == "Coverflex":
