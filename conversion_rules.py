@@ -1,39 +1,42 @@
-import pandas as pd  # Libreria per la manipolazione dei dati
+import pandas as pd
 
 def convert_coverflex(df, codice_azienda, mappa_causali_df):
-    df = df.copy()  # Crea una copia del DataFrame per evitare modifiche all’originale
+    df = df.copy()  # Evita modifiche all'originale
 
-    # Converte la colonna 'Data' in formato datetime, assumendo giorno prima del mese
-    df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce')
+    # ✅ Conversione sicura della data in formato italiano dd/mm/yyyy
+    df['Data'] = pd.to_datetime(df['Data'], format='%d/%m/%Y', errors='coerce')
 
-    output = pd.DataFrame()  # Crea un nuovo DataFrame vuoto per l’output
-    output['Codice dipendente'] = range(1, len(df) + 1)  # Assegna numeri progressivi
+    output = pd.DataFrame()
 
-    # Mappa la causale usando la tabella "mappa_causali_df"
+    # Numero progressivo come codice dipendente
+    output['Codice dipendente'] = range(1, len(df) + 1)
+
+    # Mappatura del codice causale
     output['Codice voce'] = df['Tratt. Fiscale'].map(
         mappa_causali_df.set_index('Trattamento')['Codice']
-    ).fillna('')  # Se non trovata, lascia vuoto
+    ).fillna('')
 
-    # Colonne fisse o vuote nel file di destinazione
+    # Colonne placeholder vuote
     output['Descrizione'] = ''
     output['Quantità'] = ''
     output['Base'] = ''
 
-    # Converte 'Importo' da stringa con virgola a float, moltiplica per 100 e arrotonda
+    # ✅ Conversione sicura dell'importo da formato italiano a centesimi interi
     output['Importo'] = (
         df['Importo']
         .astype(str)
-        .str.replace('.', '', regex=False)       # Rimuove punti (es. 2.590.00 → 259000)
-        .str.replace(',', '.', regex=False)      # Converte la virgola in punto
-        .astype(float) * 100
+        .str.replace('.', '', regex=False)       # Rimuove il separatore delle migliaia
+        .str.replace(',', '.', regex=False)      # Converte la virgola in punto decimale
+        .astype(float) * 100                     # Moltiplica per 100 per ottenere i centesimi
     ).round().astype('Int64')
 
-
-    # Estrae la data nel formato richiesto ddmmyy
+    # ✅ Formatta la data come stringa nel formato richiesto ddmmyy
     output['Periodo'] = df['Data'].dt.strftime('%d%m%y').fillna('')
-    output['Tipo elaborazione'] = ''  # Colonna vuota
 
-    return output  # Restituisce il DataFrame convertito
+    # Colonna vuota richiesta
+    output['Tipo elaborazione'] = ''
+
+    return output
 
 
 def convert_doubleyou(df, codice_azienda, mappa_causali_df):
