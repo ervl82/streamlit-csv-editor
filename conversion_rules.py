@@ -1,41 +1,63 @@
-import pandas as pd
+import pandas as pd  # Libreria per la manipolazione dei dati
 
 def convert_coverflex(df, codice_azienda, mappa_causali_df):
-    df = df.copy()
+    df = df.copy()  # Crea una copia del DataFrame per evitare modifiche all’originale
 
-    # Conversione della data: dayfirst=True, errore convertito in NaT
+    # Converte la colonna 'Data' in formato datetime, assumendo giorno prima del mese
     df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce')
 
-    output = pd.DataFrame()
-    output['Codice dipendente'] = df['Codice fiscale dipendente']
-    output['Codice voce'] = range(1, len(df) + 1)
-    output['Codice causale'] = df['Tratt. Fiscale'].map(mappa_causali_df.set_index('Trattamento')['Codice']).fillna('')
+    output = pd.DataFrame()  # Crea un nuovo DataFrame vuoto per l’output
+    output['Codice dipendente'] = df['Codice fiscale dipendente']  # Mappa codice fiscale
+    output['Codice voce'] = range(1, len(df) + 1)  # Assegna numeri progressivi
 
+    # Mappa la causale usando la tabella "mappa_causali_df"
+    output['Codice causale'] = df['Tratt. Fiscale'].map(
+        mappa_causali_df.set_index('Trattamento')['Codice']
+    ).fillna('')  # Se non trovata, lascia vuoto
+
+    # Colonne fisse o vuote nel file di destinazione
     output['Descrizione'] = ''
     output['Quantità'] = ''
     output['Base'] = ''
-    # Moltiplica per 100 e arrotonda importo
-    output['Importo'] = (df['Importo'].str.replace(',', '.').astype(float) * 100).round().astype('Int64')
-    output['Periodo'] = df['Data'].dt.strftime('%d%m%y').fillna('')
-    output['Tipo elaborazione'] = ''
 
-    return output
+    # Converte 'Importo' da stringa con virgola a float, moltiplica per 100 e arrotonda
+    output['Importo'] = (
+        df['Importo'].astype(str).str.replace(',', '.').astype(float) * 100
+    ).round().astype('Int64')  # Tipo numerico intero gestendo anche i null
+
+    # Estrae la data nel formato richiesto ddmmyy
+    output['Periodo'] = df['Data'].dt.strftime('%d%m%y').fillna('')
+    output['Tipo elaborazione'] = ''  # Colonna vuota
+
+    return output  # Restituisce il DataFrame convertito
+
 
 def convert_doubleyou(df, codice_azienda, mappa_causali_df):
-    df = df.copy()
+    df = df.copy()  # Crea una copia del DataFrame
 
+    # Converte 'Data Ordine' in formato datetime
     df['Data Ordine'] = pd.to_datetime(df['Data Ordine'], dayfirst=True, errors='coerce')
 
     output = pd.DataFrame()
-    output['Codice dipendente'] = df['CodFisc']
-    output['Codice voce'] = range(1, len(df) + 1)
-    output['Codice causale'] = df['Tratt. Fiscale'].map(mappa_causali_df.set_index('Trattamento')['Codice']).fillna('')
+    output['Codice dipendente'] = df['CodFisc']  # Colonna codice fiscale
+    output['Codice voce'] = range(1, len(df) + 1)  # Numerazione sequenziale
+
+    # Mappa la causale
+    output['Codice causale'] = df['Tratt. Fiscale'].map(
+        mappa_causali_df.set_index('Trattamento')['Codice']
+    ).fillna('')  # Se non trovata, lascia vuoto
 
     output['Descrizione'] = ''
     output['Quantità'] = ''
     output['Base'] = ''
-    output['Importo'] = (df['Totale'].astype(float) * 100).round().astype('Int64')
+
+    # Gestione dei decimali con virgola → punto → float → centesimi → int
+    output['Importo'] = (
+        df['Totale'].astype(str).str.replace(',', '.').astype(float) * 100
+    ).round().astype('Int64')
+
+    # Estrazione del periodo in formato ddmmyy
     output['Periodo'] = df['Data Ordine'].dt.strftime('%d%m%y').fillna('')
     output['Tipo elaborazione'] = ''
 
-    return output
+    return output  # Restituisce il risultato finale
