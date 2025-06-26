@@ -44,7 +44,7 @@ def convert_doubleyou(df, codice_azienda, mappa_causali_df):
     df = df.copy()  # Crea una copia del DataFrame
 
     # Converte 'Data Ordine' in formato datetime
-    df['Data Ordine'] = pd.to_datetime(df['Data Ordine'], dayfirst=True, errors='coerce')
+    df['Data Ordine'] = pd.to_datetime(df['Data Ordine'], format='%d/%m/%Y', errors='coerce')
 
     output = pd.DataFrame()
     output['Codice dipendente'] = df['CodFisc']  # Colonna codice fiscale
@@ -63,9 +63,8 @@ def convert_doubleyou(df, codice_azienda, mappa_causali_df):
     output['Importo'] = (
         df['Totale']
         .astype(str)
-        .str.replace('.', '', regex=False)       # Rimuove punti (es. 2.590.00 → 259000)
-        .str.replace(',', '.', regex=False)      # Converte la virgola in punto
-        .astype(float) * 100
+        .str.replace(',', '.', regex=False)  # Converte la virgola in punto
+        .astype(float) * 100                 # Moltiplica per 100 per ottenere i centesimi
     ).round().astype('Int64')
 
 
