@@ -47,11 +47,9 @@ def convert_doubleyou(df, codice_azienda, mappa_causali_df):
     df['Data Ordine'] = pd.to_datetime(df['Data Ordine'], format='%d/%m/%Y', errors='coerce')
 
     output = pd.DataFrame()
-    output['Codice dipendente'] = df['CodFisc']  # Colonna codice fiscale
-    output['Codice voce'] = range(1, len(df) + 1)  # Numerazione sequenziale
-
+    output['Codice dipendente'] = range(1, len(df) + 1)  # Numerazione sequenziale
     # Mappa la causale
-    output['Codice causale'] = df['Tratt. Fiscale'].map(
+    output['Codice voce'] = df['Tratt. Fiscale'].map(
         mappa_causali_df.set_index('Trattamento')['Codice']
     ).fillna('')  # Se non trovata, lascia vuoto
 
