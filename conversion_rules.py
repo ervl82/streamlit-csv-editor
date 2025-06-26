@@ -22,8 +22,13 @@ def convert_coverflex(df, codice_azienda, mappa_causali_df):
 
     # Converte 'Importo' da stringa con virgola a float, moltiplica per 100 e arrotonda
     output['Importo'] = (
-        df['Importo'].astype(str).str.replace(',', '.').astype(float) * 100
-    ).round().astype('Int64')  # Tipo numerico intero gestendo anche i null
+        df['Importo']
+        .astype(str)
+        .str.replace('.', '', regex=False)       # Rimuove punti (es. 2.590.00 → 259000)
+        .str.replace(',', '.', regex=False)      # Converte la virgola in punto
+        .astype(float) * 100
+    ).round().astype('Int64')
+
 
     # Estrae la data nel formato richiesto ddmmyy
     output['Periodo'] = df['Data'].dt.strftime('%d%m%y').fillna('')
@@ -53,8 +58,13 @@ def convert_doubleyou(df, codice_azienda, mappa_causali_df):
 
     # Gestione dei decimali con virgola → punto → float → centesimi → int
     output['Importo'] = (
-        df['Totale'].astype(str).str.replace(',', '.').astype(float) * 100
+        df['Importo']
+        .astype(str)
+        .str.replace('.', '', regex=False)       # Rimuove punti (es. 2.590.00 → 259000)
+        .str.replace(',', '.', regex=False)      # Converte la virgola in punto
+        .astype(float) * 100
     ).round().astype('Int64')
+
 
     # Estrazione del periodo in formato ddmmyy
     output['Periodo'] = df['Data Ordine'].dt.strftime('%d%m%y').fillna('')
