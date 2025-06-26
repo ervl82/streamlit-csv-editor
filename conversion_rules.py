@@ -58,7 +58,7 @@ def convert_doubleyou(df, codice_azienda, mappa_causali_df):
 
     # Gestione dei decimali con virgola → punto → float → centesimi → int
     output['Importo'] = (
-        df['Importo']
+        df['Totale']
         .astype(str)
         .str.replace('.', '', regex=False)       # Rimuove punti (es. 2.590.00 → 259000)
         .str.replace(',', '.', regex=False)      # Converte la virgola in punto
