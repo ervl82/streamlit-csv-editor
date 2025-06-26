@@ -7,11 +7,10 @@ def convert_coverflex(df, codice_azienda, mappa_causali_df):
     df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce')
 
     output = pd.DataFrame()  # Crea un nuovo DataFrame vuoto per l’output
-    output['Codice dipendente'] = df['Codice fiscale dipendente']  # Mappa codice fiscale
-    output['Codice voce'] = range(1, len(df) + 1)  # Assegna numeri progressivi
+    output['Codice dipendente'] = range(1, len(df) + 1)  # Assegna numeri progressivi
 
     # Mappa la causale usando la tabella "mappa_causali_df"
-    output['Codice causale'] = df['Tratt. Fiscale'].map(
+    output['Codice voce'] = df['Tratt. Fiscale'].map(
         mappa_causali_df.set_index('Trattamento')['Codice']
     ).fillna('')  # Se non trovata, lascia vuoto
 
