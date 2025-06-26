@@ -4,7 +4,7 @@ def convert_coverflex(df, codice_azienda, mappa_causali_df):
     df = df.copy()  # Evita modifiche all'originale
 
     # ✅ Conversione sicura della data in formato italiano dd/mm/yyyy
-    df['Data'] = pd.to_datetime(df['Data'], format='%d/%m/%Y', errors='coerce')
+    df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce')
 
     output = pd.DataFrame()
 
@@ -31,7 +31,7 @@ def convert_coverflex(df, codice_azienda, mappa_causali_df):
     ).round().astype('Int64')
 
     # ✅ Formatta la data come stringa nel formato richiesto ddmmyy
-    output['Periodo'] = df['Data'].dt.strftime('%d%m%y').fillna('')
+    output['Periodo'] = df['Data'].dt.strftime('%d%m%y')
 
     # Colonna vuota richiesta
     output['Tipo elaborazione'] = ''
