@@ -1,126 +1,129 @@
-import streamlit as st
-import pandas as pd
-from conversion_rules import convert_coverflex, convert_doubleyou
+import streamlit as st  # Libreria per creare interfacce web interattive
+import pandas as pd  # Per la manipolazione di file CSV e DataFrame
+import csv  # Per rilevamento automatico del delimitatore CSV
+import io  # Per gestire file in memoria come stream di testo
 
-@st.cache_data
+from conversion_rules import convert_coverflex, convert_doubleyou  # Funzioni di conversione specifiche
+
+
+@st.cache_data  # Cache per caricare una sola volta la mappa causali
 def load_mappa_causali():
+    return pd.read_csv('mappa_causali.csv')  # File con la mappatura causali
+
+
+def detect_delimiter(file) -> str:
     """
-    Carica il file CSV con la mappatura delle causali da disco.
-    Utilizza caching per evitare di ricaricare il file ogni volta che cambia qualcosa nella UI.
+    Rileva automaticamente il delimitatore CSV del file.
+    Se non riesce, ritorna una virgola come default.
     """
-    return pd.read_csv('mappa_causali.csv')
+    try:
+        # Legge tutto il contenuto del file in memoria come stringa
+        content = file.getvalue().decode('utf-8')
+        # Usa csv.Sniffer per trovare il delimitatore
+        sniffer = csv.Sniffer()
+        delimiter = sniffer.sniff(content).delimiter
+        return delimiter
+    except Exception:
+        # Se il rilevamento fallisce, ritorna la virgola di default
+        return ','
+
 
 def main():
-    st.title("Convertitore file welfare")  # Titolo principale dell'app
+    st.title("Convertitore file welfare")  # Titolo dell'applicazione
 
-    # Input di testo per il codice azienda richiesto per la conversione
-    codice_azienda = st.text_input("Codice azienda:")
+    codice_azienda = st.text_input("Codice azienda:")  # Input codice azienda
 
-    # Upload multiplo di file CSV (max 24 file)
-    # L'utente può caricare sia file Coverflex che DoubleYou mischiati
+    # Caricamento multiplo file (max 24)
     files = st.file_uploader(
-        "Carica fino a 24 file CSV (mix Coverflex/DoubleYou possibile):",
+        "Carica fino a 24 file CSV (Coverflex e/o DoubleYou)", 
+        type=['csv'], 
         accept_multiple_files=True,
-        type=['csv']
+        key='multi_files'
     )
 
-    # Carica la tabella di mappatura delle causali una volta per tutte
-    mappa_causali_df = load_mappa_causali()
+    mappa_causali_df = load_mappa_causali()  # Carica mappa causali
 
-    # Se ci sono file caricati, mostra la lista con un selettore a tendina accanto a ciascun file
-    # per permettere la selezione manuale del tipo di file (Auto, Coverflex, DoubleYou)
-    tipo_file_selezioni = []
+    # Se sono stati caricati file, mostra l'interfaccia di selezione tipo per ciascun file
     if files:
-        st.markdown("### 📂 Seleziona tipologia per ciascun file:")
-        for i, file in enumerate(files):
-            # Layout a colonne: nome file a sinistra, selettore tipo a destra
-            col1, col2 = st.columns([4, 2])
-            with col1:
-                st.write(file.name)  # Visualizza nome file caricato
-            with col2:
-                # Casella a tendina per scegliere manualmente il tipo di file
-                # Default 'Auto' prova a riconoscere automaticamente il formato
-                tipo = st.selectbox(
-                    f"Tipo file {i}",
-                    options=['Auto', 'Coverflex', 'DoubleYou'],
-                    index=0,  # Imposta il valore di default su 'Auto'
-                    key=f'tipo_file_{i}'  # Chiave unica per ogni selettore per mantenere stato
-                )
-                tipo_file_selezioni.append(tipo)
+        st.markdown("### 📂 Seleziona tipologia per ciascun file")
+        tipi_file = []
+        for i, f in enumerate(files):
+            # Riga con nome file e selectbox per tipo (auto, coverflex, doubleyou)
+            tipo = st.selectbox(
+                f"{f.name}", 
+                options=['Auto', 'Coverflex', 'DoubleYou'], 
+                key=f"tipo_{i}"
+            )
+            tipi_file.append(tipo)
 
-    # Bottone per avviare la conversione di tutti i file caricati e selezionati
-    if st.button("Converti tutti i file"):
-        # Controllo che il codice azienda sia stato inserito
-        if not codice_azienda:
-            st.error("Inserisci il codice azienda")
-            return
-        # Controllo che almeno un file sia stato caricato
-        if not files:
-            st.error("Carica almeno un file CSV")
-            return
+        # Bottone per iniziare la conversione
+        if st.button("Converti tutti i file"):
+            if not codice_azienda:
+                st.error("Inserisci il codice azienda")
+                return
 
-        # Lista per tenere traccia dei risultati convertiti (nome file e dataframe)
-        risultati = []
-        # Lista per collezionare eventuali messaggi di record scartati o errori di parsing
-        messaggi_scarti_tot = []
+            risultati = []  # Lista per risultati conversione di ogni file
+            messaggi_errori = []  # Lista per messaggi di errori o scarti
 
-        # Ciclo su tutti i file caricati per processarli singolarmente
-        for i, file in enumerate(files):
-            tipo_file = tipo_file_selezioni[i]  # Tipo file scelto per ciascun file
-
-            try:
-                # Se l’utente ha scelto esplicitamente Coverflex
-                if tipo_file == 'Coverflex':
-                    # Legge CSV con skiprows=3 (tipico di Coverflex), separatore automatico
-                    df = pd.read_csv(file, sep=None, engine='python', skiprows=3)
-                    output, scarti = convert_coverflex(df, codice_azienda, mappa_causali_df)
-
-                # Se l’utente ha scelto esplicitamente DoubleYou
-                elif tipo_file == 'DoubleYou':
-                    # Legge CSV con separatore punto e virgola ';'
-                    df = pd.read_csv(file, sep=';', engine='python')
-                    output, scarti = convert_doubleyou(df, codice_azienda, mappa_causali_df)
-
-                # Se tipo è Auto, prova prima DoubleYou, se fallisce passa a Coverflex
-                elif tipo_file == 'Auto':
-                    try:
-                        # Prova a leggere come DoubleYou (separatore ';')
-                        df = pd.read_csv(file, sep=';', engine='python')
-                        output, scarti = convert_doubleyou(df, codice_azienda, mappa_causali_df)
-                    except Exception:
-                        # Se fallisce, prova come Coverflex (skiprows=3)
-                        df = pd.read_csv(file, sep=None, engine='python', skiprows=3)
+            # Ciclo su ogni file e tipo selezionato
+            for f, tipo_file in zip(files, tipi_file):
+                try:
+                    # Rileva o forza il delimitatore in base al tipo e modalità 'Auto'
+                    if tipo_file == 'Coverflex':
+                        delimiter = detect_delimiter(f)
+                        content = f.getvalue().decode('utf-8')
+                        df = pd.read_csv(io.StringIO(content), sep=delimiter, engine='python', skiprows=3)
                         output, scarti = convert_coverflex(df, codice_azienda, mappa_causali_df)
-                else:
-                    st.warning(f"Tipo file non riconosciuto per '{file.name}', salto questo file.")
-                    continue  # Salta il file
 
-                # Salva il risultato e i messaggi di scarto
-                risultati.append((file.name, output))
-                messaggi_scarti_tot.extend([f"{file.name}: {msg}" for msg in scarti])
+                    elif tipo_file == 'DoubleYou':
+                        delimiter = detect_delimiter(f)
+                        content = f.getvalue().decode('utf-8')
+                        df = pd.read_csv(io.StringIO(content), sep=delimiter, engine='python')
+                        output, scarti = convert_doubleyou(df, codice_azienda, mappa_causali_df)
 
-            except Exception as e:
-                # Mostra errore specifico per file in caso di eccezioni generali
-                st.error(f"Errore nel file '{file.name}': {e}")
+                    else:  # Auto detection
+                        # Prima prova come Coverflex
+                        try:
+                            delimiter = detect_delimiter(f)
+                            content = f.getvalue().decode('utf-8')
+                            df = pd.read_csv(io.StringIO(content), sep=delimiter, engine='python', skiprows=3)
+                            output, scarti = convert_coverflex(df, codice_azienda, mappa_causali_df)
+                        except Exception:
+                            # Se fallisce Coverflex prova DoubleYou
+                            delimiter = detect_delimiter(f)
+                            content = f.getvalue().decode('utf-8')
+                            df = pd.read_csv(io.StringIO(content), sep=delimiter, engine='python')
+                            output, scarti = convert_doubleyou(df, codice_azienda, mappa_causali_df)
 
-        # Se ci sono risultati da mostrare
-        if risultati:
-            st.success("✅ Conversione completata!")
+                    # Mostra successo e bottone per download per ogni file
+                    st.success(f"✅ Conversione completata per file: {f.name}")
 
-            # Se ci sono messaggi di scarto o warning, li mostra in modo semplice
-            if messaggi_scarti_tot:
-                st.warning("⚠️ Alcuni record sono stati scartati o contengono errori:")
-                for msg in messaggi_scarti_tot:
-                    st.write(msg)
+                    # Se ci sono record scartati mostra messaggio sintetico
+                    if len(scarti) > 0:
+                        st.warning(f"⚠️ {len(scarti)} record scartati in {f.name}. Controlla il file di scarti.")
 
-            # Mostra un bottone di download per ogni file convertito, rimane visibile anche dopo il click
-            for file_name, df_out in risultati:
-                st.download_button(
-                    label=f"📥 Scarica {file_name} convertito",
-                    data=df_out.to_csv(index=False).encode('utf-8'),
-                    file_name=f"converted_{file_name}",
-                    mime='text/csv'
-                )
+                    # Bottone di download per il file convertito
+                    st.download_button(
+                        label=f"📥 Scarica file convertito: {f.name}",
+                        data=output.to_csv(index=False).encode('utf-8'),
+                        file_name=f"converted_{f.name}",
+                        mime='text/csv',
+                        key=f"download_{f.name}"
+                    )
+
+                    # Se ci sono record scartati, aggiungi il file di scarti con download
+                    if len(scarti) > 0:
+                        st.download_button(
+                            label=f"📂 Scarica file scarti: {f.name}",
+                            data=scarti.to_csv(index=False).encode('utf-8'),
+                            file_name=f"scarti_{f.name}",
+                            mime='text/csv',
+                            key=f"scarti_{f.name}"
+                        )
+
+                except Exception as e:
+                    st.error(f"❌ Errore nel file '{f.name}': {str(e)}")
+
 
 if __name__ == '__main__':
     main()
