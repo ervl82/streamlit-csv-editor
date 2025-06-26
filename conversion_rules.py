@@ -4,7 +4,7 @@ def convert_coverflex(df, codice_azienda, mappa_causali_df):
     df = df.copy()  # Evita modifiche all'originale
 
     # ✅ Conversione sicura della data in formato italiano dd/mm/yyyy
-    df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce')
+    df['Data'] = pd.to_datetime(df['Data'], errors='coerce')
 
     output = pd.DataFrame()
 
@@ -23,15 +23,16 @@ def convert_coverflex(df, codice_azienda, mappa_causali_df):
 
     # ✅ Conversione sicura dell'importo da formato italiano a centesimi interi
     output['Importo'] = (
-        df['Importo']
-        .astype(str)
-        .str.replace('.', '', regex=False)       # Rimuove il separatore delle migliaia
-        .str.replace(',', '.', regex=False)      # Converte la virgola in punto decimale
-        .astype(float) * 100                     # Moltiplica per 100 per ottenere i centesimi
+    df['Importo']
+    .astype(str)
+    .str.replace('.', '', regex=False)    # Rimuove eventuali punti (es. 2.590,00 → 2590,00)
+    .str.replace(',', '.', regex=False)   # Cambia virgola in punto (es. 2590,00 → 2590.00)
+    .astype(float) * 100
     ).round().astype('Int64')
 
+
     # ✅ Formatta la data come stringa nel formato richiesto ddmmyy
-    output['Periodo'] = df['Data'].dt.strftime('%d%m%y')
+    output['Periodo'] = df['Data'].dt.strftime('%d%m%y').fillna('')
 
     # Colonna vuota richiesta
     output['Tipo elaborazione'] = ''
