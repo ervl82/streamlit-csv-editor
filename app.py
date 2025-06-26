@@ -1,55 +1,97 @@
-import streamlit as st  # Libreria per creare interfacce web
-import pandas as pd  # Manipolazione file CSV
-from conversion_rules import convert_coverflex, convert_doubleyou  # Importa le funzioni di conversione
+import streamlit as st
+import pandas as pd
+from conversion_rules import convert_coverflex, convert_doubleyou
 
-@st.cache_data  # Cache per evitare di ricaricare ogni volta il file
+@st.cache_data
 def load_mappa_causali():
-    return pd.read_csv('mappa_causali.csv')  # Carica il file delle mappature
+    return pd.read_csv('mappa_causali.csv')
+
+def rileva_tipologia(nome_file):
+    nome = nome_file.lower()
+    if 'coverflex' in nome:
+        return 'Coverflex'
+    elif 'doubleyou' in nome or 'double_you' in nome:
+        return 'DoubleYou'
+    return None  # Non riconosciuto
 
 def main():
-    st.title("Convertitore file welfare")  # Titolo applicazione
+    st.title("🧰 Convertitore file welfare multipli")
 
-    # Inserimento dati da parte dell’utente
     codice_azienda = st.text_input("Codice azienda:")
-    provider = st.radio("Provider:", ('Coverflex', 'DoubleYou'))  # Scelta del provider
-    file = st.file_uploader("Carica il file CSV di origine", type=['csv'])  # Upload file
+    uploaded_files = st.file_uploader(
+        "Carica fino a 24 file CSV",
+        type=['csv'],
+        accept_multiple_files=True
+    )
 
-    mappa_causali_df = load_mappa_causali()  # Caricamento mappature causali
+    mappa_causali_df = load_mappa_causali()
 
-    if st.button("Converti"):  # Quando si preme il bottone "Converti"
+    # Interfaccia di selezione manuale della tipologia per ciascun file
+    file_tipologie = {}
+    if uploaded_files:
+        if len(uploaded_files) > 24:
+            st.error("❗ Puoi caricare al massimo 24 file")
+            return
+
+        st.markdown("### Seleziona la tipologia per ogni file:")
+        for i, file in enumerate(uploaded_files):
+            with st.container():
+                col1, col2 = st.columns([3, 2])
+                with col1:
+                    st.markdown(f"**📄 {file.name}**")
+                with col2:
+                    scelta = st.selectbox(
+                        f"Tipologia per {file.name}",
+                        ['Auto', 'Coverflex', 'DoubleYou'],
+                        key=f"tipologia_{i}"
+                    )
+                    file_tipologie[file.name] = scelta
+
+    if st.button("Converti"):
         if not codice_azienda:
-            st.error("Inserisci il codice azienda")  # Errore se campo vuoto
+            st.error("❗ Inserisci il codice azienda")
             return
-        if not file:
-            st.error("Carica un file CSV")  # Errore se file mancante
+        if not uploaded_files:
+            st.error("❗ Carica almeno un file")
             return
 
-        try:
-            if provider == 'Coverflex':
-                # Coverflex: salta le prime 3 righe inutili (titoli/report)
-                df = pd.read_csv(file, sep=None, engine='python', skiprows=3)
-                result = convert_coverflex(df, codice_azienda, mappa_causali_df)
-                file_name = 'coverflex_converted.csv'
-            else:
-                # DoubleYou: forza separatore a punto e virgola
-                df = pd.read_csv(file, sep=';', engine='python')
-                result = convert_doubleyou(df, codice_azienda, mappa_causali_df)
-                file_name = 'doubleyou_converted.csv'
+        for i, file in enumerate(uploaded_files):
+            nome_file = file.name
+            try:
+                scelta = file_tipologie.get(nome_file, 'Auto')
+                if scelta == 'Auto':
+                    tipologia = rileva_tipologia(nome_file)
+                    if not tipologia:
+                        st.warning(f"⚠️ Tipologia non riconosciuta per il file: {nome_file}")
+                        continue
+                else:
+                    tipologia = scelta
 
-            # Messaggio di successo
-            st.success("✅ Conversione completata!")
+                # Lettura e conversione
+                if tipologia == 'Coverflex':
+                    df = pd.read_csv(file, sep=None, engine='python', skiprows=3)
+                    result = convert_coverflex(df, codice_azienda, mappa_causali_df)
+                    nome_output = nome_file.replace('.csv', '_converted_coverflex.csv')
+                elif tipologia == 'DoubleYou':
+                    df = pd.read_csv(file, sep=';', engine='python')
+                    result = convert_doubleyou(df, codice_azienda, mappa_causali_df)
+                    nome_output = nome_file.replace('.csv', '_converted_doubleyou.csv')
+                else:
+                    st.warning(f"⚠️ Tipologia non riconosciuta per il file: {nome_file}")
+                    continue
 
-            # Bottone per scaricare il file risultante
-            st.download_button(
-                label="📥 Scarica file convertito",
-                data=result.to_csv(index=False).encode('utf-8'),
-                file_name=file_name,  # Nome file coerente con il provider
-                mime='text/csv'
-            )
-        except Exception as e:
-            # Mostra eventuali errori durante la conversione
-            st.error(f"❌ Errore durante la conversione: {e}")
+                st.success(f"✅ File '{nome_file}' convertito come {tipologia}.")
 
-# Avvio dell’app
+                st.download_button(
+                    label=f"⬇️ Scarica {nome_output}",
+                    data=result.to_csv(index=False).encode('utf-8'),
+                    file_name=nome_output,
+                    mime='text/csv'
+                )
+
+            except Exception as e:
+                st.error(f"❌ Errore durante la conversione di {nome_file}: {e}")
+
+# Avvio app
 if __name__ == '__main__':
     main()
