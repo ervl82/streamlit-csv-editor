@@ -1,42 +1,73 @@
 import pandas as pd
 
-def load_causal_map():
-    return pd.read_csv("mappa_causali.csv", encoding="utf-8")
+# Carica la mappa causali una volta sola
+causali_df = pd.read_csv('mappa_causali.csv')
 
-def convert_coverflex(df, company_code, causal_map):
-    df.columns = df.columns.str.strip()
+def get_codice_causale(trattamento):
+    # Cerca nella mappa causali, restituisce codice o None se non trovato
+    row = causali_df[causali_df['Trattamento'] == trattamento]
+    if not row.empty:
+        return row['Codice'].values[0]
+    return None
 
-    # Trova la riga di intestazione corretta
-    header_row = df[df.iloc[:, 0].str.contains("Codice fiscale dipendente", na=False)].index[0]
-    df = pd.read_csv("coverflex.csv", skiprows=header_row)
+def convert_coverflex(df, codice_azienda):
+    df = df.copy()
 
-    df["Importo"] = df["Importo"].astype(str).str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
-    df["Importo"] = df["Importo"].astype(float)
+    # Pulizia colonne: rimuovi righe vuote o intestazioni duplicate
+    df = df.loc[df['Codice fiscale dipendente'].notnull()]
 
-    df["Codice dipendente"] = df["Codice fiscale dipendente"]
-    df["Codice voce"] = df["Tratt. Fiscale"].map(dict(zip(causal_map["Trattamento"], causal_map["Codice"])))
-    df["Descrizione"] = ""
-    df["Quantità"] = ""
-    df["Base"] = ""
-    df["Importo"] = (df["Importo"] * 100).round().astype(int)
-    df["Periodo"] = pd.to_datetime(df["Data"], dayfirst=True).dt.strftime("%d%m%y")
-    df["Tipo elaborazione"] = ""
+    # Correggi i tipi numerici e formati
+    df['Importo'] = df['Importo'].astype(str).str.replace(',', '.').astype(float)
 
-    return df[["Codice dipendente", "Codice voce", "Descrizione", "Quantità", "Base", "Importo", "Periodo", "Tipo elaborazione"]]
+    # Costruisci il dataframe risultato
+    result = pd.DataFrame()
+    result['Codice dipendente'] = df['Codice fiscale dipendente']
+    # Codice voce: mappato da 'Tratt. Fiscale'
+    result['Codice voce'] = df['Tratt. Fiscale'].apply(get_codice_causale)
+    result['Descrizione'] = ''
+    result['Quantità'] = ''
+    result['Base'] = ''
+    # Importo moltiplicato per 100 e convertito in int
+    result['Importo'] = (df['Importo'] * 100).round().astype(int)
+    # Periodo: formato ddmmyy (giorno, mese, anno due cifre)
+    result['Periodo'] = pd.to_datetime(df['Data'], dayfirst=True).dt.strftime('%d%m%y')
+    result['Tipo elaborazione'] = ''
+    # Codice progressivo
+    result.insert(0, 'Progressivo', range(1, len(result) + 1))
+    return result
 
-def convert_doubleyou(df, company_code, causal_map):
-    df.columns = df.columns.str.strip()
+def convert_doubleyou(df, codice_azienda):
+    df = df.copy()
 
-    df["Importo"] = df["Totale"].astype(str).str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
-    df["Importo"] = df["Importo"].astype(float)
+    # Pulizia colonne: rimuovi righe vuote o intestazioni duplicate
+    df = df.loc[df['CodFisc'].notnull()]
 
-    df["Codice dipendente"] = df["CodFisc"]
-    df["Codice voce"] = df["Tratt. Fiscale"].map(dict(zip(causal_map["Trattamento"], causal_map["Codice"])))
-    df["Descrizione"] = ""
-    df["Quantità"] = ""
-    df["Base"] = ""
-    df["Importo"] = (df["Importo"] * 100).round().astype(int)
-    df["Periodo"] = pd.to_datetime(df["Data Ordine"], dayfirst=True).dt.strftime("%d%m%y")
-    df["Tipo elaborazione"] = ""
+    # Correggi importi
+    df['Totale'] = df['Totale'].astype(str).str.replace(',', '.').astype(float)
 
-    return df[["Codice dipendente", "Codice voce", "Descrizione", "Quantità", "Base", "Importo", "Periodo", "Tipo elaborazione"]]
+    result = pd.DataFrame()
+    result['Codice dipendente'] = df['CodFisc']
+    # Codice voce: mappato da 'Tratt. Fiscale'
+    result['Codice voce'] = df['Tratt. Fiscale'].apply(get_codice_causale)
+    result['Descrizione'] = ''
+    result['Quantità'] = ''
+    result['Base'] = ''
+    result['Importo'] = (df['Totale'] * 100).round().astype(int)
+    # Per periodo: se c'è colonna 'Periodo' prova a convertire in ddmmyy, altrimenti usa 'Data Ordine'
+    if 'Periodo' in df.columns:
+        # Prova a convertire da testo tipo "aprile - 2025" a formato ddmmyy: lo mettiamo a '' perché non è una data precisa
+        result['Periodo'] = ''
+    else:
+        result['Periodo'] = pd.to_datetime(df['Data Ordine'], dayfirst=True).dt.strftime('%d%m%y')
+
+    result['Tipo elaborazione'] = ''
+    result.insert(0, 'Progressivo', range(1, len(result) + 1))
+    return result
+
+def convert_file(df, codice_azienda, provider):
+    if provider == 'Coverflex':
+        return convert_coverflex(df, codice_azienda)
+    elif provider == 'DoubleYou':
+        return convert_doubleyou(df, codice_azienda)
+    else:
+        raise ValueError('Provider non supportato')
